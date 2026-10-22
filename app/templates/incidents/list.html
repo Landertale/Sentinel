@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Sentinel - Incident Dashboard{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+  <div>
+    <h1 style="font-size: 1.75rem; font-weight: 700; color: #fff;">Incident Management Dashboard</h1>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">Nexus Digital Solutions SOC Queue</p>
+  </div>
+  <div>
+    <a href="{{ url_for('incidents.create_incident') }}" class="btn btn-primary">+ Report New Incident</a>
+  </div>
+</div>
+
+<!-- Search & Filtering Bar -->
+<div class="card" style="padding: 1.25rem;">
+  <form method="GET" action="{{ url_for('incidents.list_incidents') }}" style="display: grid; grid-template-columns: 1fr auto auto auto; gap: 0.75rem; align-items: end;">
+    <div class="form-group" style="margin-bottom: 0;">
+      <label for="q">Search Incidents</label>
+      <input type="text" id="q" name="q" value="{{ search_term }}" placeholder="Search title or description substring...">
+    </div>
+
+    <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+      <label for="severity">Severity Filter</label>
+      <select id="severity" name="severity">
+        <option value="ALL" {% if selected_severity == 'ALL' %}selected{% endif %}>All Severities</option>
+        <option value="CRITICAL" {% if selected_severity == 'CRITICAL' %}selected{% endif %}>Critical</option>
+        <option value="HIGH" {% if selected_severity == 'HIGH' %}selected{% endif %}>High</option>
+        <option value="MEDIUM" {% if selected_severity == 'MEDIUM' %}selected{% endif %}>Medium</option>
+        <option value="LOW" {% if selected_severity == 'LOW' %}selected{% endif %}>Low</option>
+      </select>
+    </div>
+
+    <div>
+      <button type="submit" class="btn btn-primary" style="height: 42px;">Filter</button>
+    </div>
+
+    {% if search_term or selected_severity != 'ALL' %}
+    <div>
+      <a href="{{ url_for('incidents.list_incidents') }}" class="btn btn-secondary" style="height: 42px;">Reset</a>
+    </div>
+    {% endif %}
+  </form>
+
+  <!-- Preferences Widget (Feature 5) -->
+  <div style="margin-top: 1rem; padding-top: 0.85rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--text-muted); flex-wrap: wrap; gap: 0.5rem;">
+    <div>
+      <span>Cookie Preference: Default Filter = <strong>{{ saved_preference }}</strong></span>
+    </div>
+    <form method="POST" action="{{ url_for('incidents.set_preferences') }}" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+      <label for="default_severity" style="margin-bottom: 0;">Set Default:</label>
+      <select id="default_severity" name="default_severity" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; width: auto;">
+        <option value="ALL" {% if saved_preference == 'ALL' %}selected{% endif %}>All Severities</option>
+        <option value="CRITICAL" {% if saved_preference == 'CRITICAL' %}selected{% endif %}>Critical</option>
+        <option value="HIGH" {% if saved_preference == 'HIGH' %}selected{% endif %}>High</option>
+        <option value="MEDIUM" {% if saved_preference == 'MEDIUM' %}selected{% endif %}>Medium</option>
+        <option value="LOW" {% if saved_preference == 'LOW' %}selected{% endif %}>Low</option>
+      </select>
+      <button type="submit" class="btn btn-secondary" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">Save Cookie</button>
+    </form>
+  </div>
+</div>
+
+<!-- Incident Items List (Most recent first) -->
+<div style="margin-top: 1rem;">
+  {% if incidents %}
+    {% for incident in incidents %}
+      <a href="{{ url_for('incidents.detail_incident', incident_id=incident.id) }}" class="incident-item">
+        <div class="incident-item-header">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="color: var(--accent-cyan); font-weight: 700; font-size: 0.9rem;">#{{ incident.id }}</span>
+            <span class="incident-title">{{ incident.title }}</span>
+          </div>
+          <span class="badge-severity severity-{{ incident.severity }}">{{ incident.severity }}</span>
+        </div>
+        
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem; line-height: 1.4;">
+          {{ incident.description[:180] }}{% if incident.description|length > 180 %}...{% endif %}
+        </p>
+
+        <div class="incident-meta">
+          <span>👤 Reported by <strong>{{ incident.created_by }}</strong></span>
+          <span>🕒 {{ incident.created_at or 'Just now' }}</span>
+          {% if incident.source_url %}
+            <span style="color: var(--accent-cyan);">🔗 External Intel Attached</span>
+          {% endif %}
+          {% if incident.attachment_filename %}
+            <span style="color: #a78bfa;">📎 Artifact Uploaded</span>
+          {% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  {% else %}
+    <div class="card" style="text-align: center; padding: 3rem 1.5rem;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">🔍</div>
+      <h3 style="color: #fff; margin-bottom: 0.5rem;">No Incidents Found</h3>
+      <p style="color: var(--text-muted); margin-bottom: 1.25rem;">No incident records match the current criteria.</p>
+      <a href="{{ url_for('incidents.create_incident') }}" class="btn btn-primary">Report an Incident</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

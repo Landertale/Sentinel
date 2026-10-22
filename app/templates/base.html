@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Sentinel - Incident Management Platform{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <a href="{{ url_for('incidents.list_incidents') if session.get('user_id') else url_for('auth.login') }}" class="nav-brand">
+      <span style="color: var(--accent-cyan); font-size: 1.4rem;">🛡️</span>
+      <span>SENTINEL</span>
+      <span class="brand-badge">SOC CORE</span>
+    </a>
+
+    <div class="nav-links">
+      {% if session.get('user_id') %}
+        <a href="{{ url_for('incidents.list_incidents') }}" class="nav-link">Incidents</a>
+        <a href="{{ url_for('incidents.create_incident') }}" class="btn btn-primary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">+ New Incident</a>
+        <div class="user-tag">
+          <span style="font-size: 0.9rem;">👤</span>
+          <span>{{ session.get('username') }}</span>
+          <span class="role-badge role-{{ session.get('role', 'analyst') }}">{{ session.get('role') }}</span>
+        </div>
+        <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color: #f87171;">Logout</a>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}" class="nav-link">Login</a>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-primary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Register</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <!-- Main Body Content -->
+  <main class="main-content">
+    <!-- Flash Messages Container -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-container">
+          {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">
+              <span>{{ message }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>Nexus Digital Solutions (NDS) &copy; 2026 Sentinel Security Incident Management Platform — Internal Prototype</p>
+  </footer>
+
+</body>
+</html>
