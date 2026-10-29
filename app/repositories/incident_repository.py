@@ -40,7 +40,7 @@ class SQLiteIncidentRepository(IIncidentRepository):
             source_url=row["source_url"],
             source_title=row["source_title"],
             attachment_filename=row["attachment_filename"],
-            created_at=row["created_at"]
+            created_at=str(row["created_at"]) if row["created_at"] is not None else None
         )
 
     def get_by_id(self, entity_id: int) -> Optional[Incident]:
@@ -169,3 +169,8 @@ class SQLiteIncidentRepository(IIncidentRepository):
         deleted = cursor.rowcount > 0
         conn.close()
         return deleted
+
+
+# Aliases for compatibility
+MariaDBIncidentRepository = SQLiteIncidentRepository
+IncidentRepository = SQLiteIncidentRepository

@@ -9,9 +9,21 @@ from app.repositories.base import (
     IIncidentRepository,
     ICommentRepository
 )
-from app.repositories.user_repository import SQLiteUserRepository
-from app.repositories.incident_repository import SQLiteIncidentRepository
-from app.repositories.comment_repository import SQLiteCommentRepository
+from app.repositories.user_repository import (
+    SQLiteUserRepository,
+    MariaDBUserRepository,
+    UserRepository
+)
+from app.repositories.incident_repository import (
+    SQLiteIncidentRepository,
+    MariaDBIncidentRepository,
+    IncidentRepository
+)
+from app.repositories.comment_repository import (
+    SQLiteCommentRepository,
+    MariaDBCommentRepository,
+    CommentRepository
+)
 
 __all__ = [
     "DatabaseConnection",
@@ -21,5 +33,11 @@ __all__ = [
     "ICommentRepository",
     "SQLiteUserRepository",
     "SQLiteIncidentRepository",
-    "SQLiteCommentRepository"
+    "SQLiteCommentRepository",
+    "MariaDBUserRepository",
+    "MariaDBIncidentRepository",
+    "MariaDBCommentRepository",
+    "UserRepository",
+    "IncidentRepository",
+    "CommentRepository"
 ]

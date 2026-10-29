@@ -37,7 +37,7 @@ class SQLiteCommentRepository(ICommentRepository):
             user_id=row["user_id"],
             username=row["username"],
             content=row["content"],
-            created_at=row["created_at"]
+            created_at=str(row["created_at"]) if row["created_at"] is not None else None
         )
 
     def get_by_id(self, entity_id: int) -> Optional[Comment]:
@@ -136,3 +136,8 @@ class SQLiteCommentRepository(ICommentRepository):
         deleted = cursor.rowcount > 0
         conn.close()
         return deleted
+
+
+# Aliases for compatibility
+MariaDBCommentRepository = SQLiteCommentRepository
+CommentRepository = SQLiteCommentRepository

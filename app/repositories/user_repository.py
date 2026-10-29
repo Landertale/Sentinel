@@ -149,3 +149,8 @@ class SQLiteUserRepository(IUserRepository):
         deleted = cursor.rowcount > 0
         conn.close()
         return deleted
+
+
+# Aliases for compatibility
+MariaDBUserRepository = SQLiteUserRepository
+UserRepository = SQLiteUserRepository
