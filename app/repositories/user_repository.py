@@ -99,6 +99,32 @@ class MariaDBUserRepository(IUserRepository):
             for row in rows
         ]
 
+    def get_by_roles(self, roles: List[str]) -> List[User]:
+        """
+        Retrieve users matching given roles.
+        
+        :param roles: List of role names
+        :return: List of User domain instances
+        """
+        if not roles:
+            return []
+        conn = self._db.get_connection()
+        cursor = conn.cursor()
+        placeholders = ", ".join([f"'{r}'" for r in roles])
+        cursor.execute(f"SELECT id, username, password, role FROM users WHERE role IN ({placeholders}) ORDER BY username ASC")
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [
+            user_factory(
+                username=row["username"],
+                password=row["password"],
+                role=row["role"],
+                user_id=row["id"]
+            )
+            for row in rows
+        ]
+
     def save(self, entity: User) -> User:
         """
         Persist a new or existing User entity.

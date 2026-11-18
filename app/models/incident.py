@@ -12,6 +12,7 @@ class Incident:
     """
 
     SEVERITY_LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    STATUS_CHOICES = ["New", "Assigned to", "Resolved"]
 
     def __init__(
         self,
@@ -23,7 +24,9 @@ class Incident:
         source_url: Optional[str] = None,
         source_title: Optional[str] = None,
         attachment_filename: Optional[str] = None,
-        created_at: Optional[str] = None
+        created_at: Optional[str] = None,
+        status: str = "New",
+        assigned_to: Optional[str] = None
     ):
         """
         Initialize an Incident entity.
@@ -37,6 +40,8 @@ class Incident:
         :param source_title: Extracted HTML title from external link preview
         :param attachment_filename: Filename of an uploaded log or artifact
         :param created_at: Timestamp of incident creation
+        :param status: Incident status ('New', 'Assigned to', 'Resolved')
+        :param assigned_to: Username of the analyst assigned to this incident
         """
         self._id = incident_id
         self._title = title
@@ -47,6 +52,8 @@ class Incident:
         self._source_title = source_title
         self._attachment_filename = attachment_filename
         self._created_at = created_at
+        self._status = status or "New"
+        self._assigned_to = assigned_to
 
     # --- Properties and Accessors ---
 
@@ -135,6 +142,26 @@ class Incident:
         """Set creation timestamp."""
         self._created_at = value
 
+    @property
+    def status(self) -> str:
+        """Get incident status."""
+        return self._status
+
+    @status.setter
+    def status(self, value: str) -> None:
+        """Set incident status."""
+        self._status = value
+
+    @property
+    def assigned_to(self) -> Optional[str]:
+        """Get username of assigned analyst."""
+        return self._assigned_to
+
+    @assigned_to.setter
+    def assigned_to(self, value: Optional[str]) -> None:
+        """Set assigned analyst."""
+        self._assigned_to = value
+
     def to_dict(self) -> dict:
         """
         Convert incident instance to dictionary.
@@ -150,5 +177,7 @@ class Incident:
             "source_url": self._source_url,
             "source_title": self._source_title,
             "attachment_filename": self._attachment_filename,
-            "created_at": self._created_at
+            "created_at": self._created_at,
+            "status": self._status,
+            "assigned_to": self._assigned_to
         }

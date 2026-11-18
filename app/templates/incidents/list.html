@@ -15,13 +15,20 @@
 
 <!-- Search & Filtering Bar -->
 <div class="card" style="padding: 1.25rem;">
-  <form method="GET" action="{{ url_for('incidents.list_incidents') }}" style="display: grid; grid-template-columns: 1fr auto auto auto; gap: 0.75rem; align-items: end;">
+  {% if session.get('role') == 'employee' %}
+    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; padding: 0.6rem 0.9rem; margin-bottom: 1rem; font-size: 0.85rem; color: #34d399; display: flex; align-items: center; gap: 0.5rem;">
+      <span>🔒</span>
+      <span><strong>Employee Restricted View:</strong> You are viewing only incidents reported by you (<strong>{{ session.get('username') }}</strong>).</span>
+    </div>
+  {% endif %}
+
+  <form method="GET" action="{{ url_for('incidents.list_incidents') }}" style="display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 0.75rem; align-items: end;">
     <div class="form-group" style="margin-bottom: 0;">
       <label for="q">Search Incidents</label>
       <input type="text" id="q" name="q" value="{{ search_term }}" placeholder="Search title or description substring...">
     </div>
 
-    <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+    <div class="form-group" style="margin-bottom: 0; min-width: 140px;">
       <label for="severity">Severity Filter</label>
       <select id="severity" name="severity">
         <option value="ALL" {% if selected_severity == 'ALL' %}selected{% endif %}>All Severities</option>
@@ -32,11 +39,21 @@
       </select>
     </div>
 
+    <div class="form-group" style="margin-bottom: 0; min-width: 140px;">
+      <label for="status">Status Filter</label>
+      <select id="status" name="status">
+        <option value="ALL" {% if selected_status == 'ALL' %}selected{% endif %}>All Statuses</option>
+        <option value="New" {% if selected_status == 'New' %}selected{% endif %}>New</option>
+        <option value="Assigned to" {% if selected_status == 'Assigned to' %}selected{% endif %}>Assigned to</option>
+        <option value="Resolved" {% if selected_status == 'Resolved' %}selected{% endif %}>Resolved</option>
+      </select>
+    </div>
+
     <div>
       <button type="submit" class="btn btn-primary" style="height: 42px;">Filter</button>
     </div>
 
-    {% if search_term or selected_severity != 'ALL' %}
+    {% if search_term or selected_severity != 'ALL' or selected_status != 'ALL' %}
     <div>
       <a href="{{ url_for('incidents.list_incidents') }}" class="btn btn-secondary" style="height: 42px;">Reset</a>
     </div>
@@ -72,7 +89,18 @@
             <span style="color: var(--accent-cyan); font-weight: 700; font-size: 0.9rem;">#{{ incident.id }}</span>
             <span class="incident-title">{{ incident.title }}</span>
           </div>
-          <span class="badge-severity severity-{{ incident.severity }}">{{ incident.severity }}</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            {% if incident.status == 'New' %}
+              <span class="badge-status status-new">New</span>
+            {% elif incident.status == 'Assigned to' %}
+              <span class="badge-status status-assigned">Assigned to: {{ incident.assigned_to or 'Analyst' }}</span>
+            {% elif incident.status == 'Resolved' %}
+              <span class="badge-status status-resolved">Resolved</span>
+            {% else %}
+              <span class="badge-status status-new">{{ incident.status }}</span>
+            {% endif %}
+            <span class="badge-severity severity-{{ incident.severity }}">{{ incident.severity }}</span>
+          </div>
         </div>
         
         <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.75rem; line-height: 1.4;">

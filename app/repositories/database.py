@@ -85,9 +85,18 @@ class DatabaseConnection:
                     source_title VARCHAR(255),
                     attachment_filename VARCHAR(255),
                     created_by VARCHAR(100) NOT NULL,
+                    status VARCHAR(50) NOT NULL DEFAULT 'New',
+                    assigned_to VARCHAR(100) NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """)
+
+            # Ensure columns exist if table was already created
+            try:
+                cursor.execute("ALTER TABLE incidents ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'New'")
+                cursor.execute("ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(100) NULL")
+            except Exception:
+                pass
 
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS comments (

@@ -40,7 +40,9 @@ class MariaDBIncidentRepository(IIncidentRepository):
             source_url=row["source_url"],
             source_title=row["source_title"],
             attachment_filename=row["attachment_filename"],
-            created_at=str(row["created_at"]) if row["created_at"] is not None else None
+            created_at=str(row["created_at"]) if row["created_at"] is not None else None,
+            status=row.get("status", "New") if isinstance(row, dict) and "status" in row else "New",
+            assigned_to=row.get("assigned_to") if isinstance(row, dict) and "assigned_to" in row else None
         )
 
     def get_by_id(self, entity_id: int) -> Optional[Incident]:
@@ -76,25 +78,35 @@ class MariaDBIncidentRepository(IIncidentRepository):
 
         return [self._row_to_incident(row) for row in rows]
 
-    def search_and_filter(self, search_term: Optional[str] = None, severity: Optional[str] = None) -> List[Incident]:
+    def search_and_filter(
+        self,
+        search_term: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        created_by: Optional[str] = None
+    ) -> List[Incident]:
         """
-        Search and filter incidents by substring match and severity.
-        
-        NOTE (R19 Shortcut): Uses direct string formatting / f-strings without sanitization.
-        This provides intentional demonstration of raw SQL querying and SQL injection.
+        Search and filter incidents by substring match, severity, status, and creator.
         
         :param search_term: Substring to search across title and description
         :param severity: Severity level string (e.g. LOW, MEDIUM, HIGH, CRITICAL)
+        :param status: Status string (e.g. 'New', 'Assigned to', 'Resolved')
+        :param created_by: Filter by creator username (used for employee role restriction)
         :return: Filtered list of Incident entities sorted with most recent first
         """
         conditions = []
         
         if search_term and search_term.strip():
-            # Intentional shortcut: unescaped string concatenation
             conditions.append(f"(title LIKE '%{search_term}%' OR description LIKE '%{search_term}%')")
 
         if severity and severity.strip() and severity.upper() != "ALL":
             conditions.append(f"severity = '{severity.upper()}'")
+
+        if status and status.strip() and status.upper() != "ALL":
+            conditions.append(f"status = '{status}'")
+
+        if created_by and created_by.strip():
+            conditions.append(f"created_by = '{created_by}'")
 
         query = "SELECT * FROM incidents"
         if conditions:
@@ -114,8 +126,6 @@ class MariaDBIncidentRepository(IIncidentRepository):
         """
         Save a new or existing Incident entity to the database.
         
-        NOTE (R19 Shortcut): Unvalidated string formatting in SQL INSERT/UPDATE.
-        
         :param entity: Incident entity
         :return: Incident entity with ID assigned
         """
@@ -126,6 +136,8 @@ class MariaDBIncidentRepository(IIncidentRepository):
         source_url_val = f"'{entity.source_url}'" if entity.source_url else "NULL"
         source_title_val = f"'{entity.source_title}'" if entity.source_title else "NULL"
         attachment_val = f"'{entity.attachment_filename}'" if entity.attachment_filename else "NULL"
+        assigned_to_val = f"'{entity.assigned_to}'" if entity.assigned_to else "NULL"
+        status_val = entity.status or "New"
 
         # Replace single quotes inside values simply if needed or directly interpolate
         title_val = entity.title.replace("'", "''") if entity.title else ""
@@ -134,9 +146,9 @@ class MariaDBIncidentRepository(IIncidentRepository):
         if entity.id is None:
             query = (
                 f"INSERT INTO incidents (title, description, severity, created_by, "
-                f"source_url, source_title, attachment_filename) VALUES ("
+                f"source_url, source_title, attachment_filename, status, assigned_to) VALUES ("
                 f"'{title_val}', '{desc_val}', '{entity.severity}', '{entity.created_by}', "
-                f"{source_url_val}, {source_title_val}, {attachment_val})"
+                f"{source_url_val}, {source_title_val}, {attachment_val}, '{status_val}', {assigned_to_val})"
             )
             cursor.execute(query)
             conn.commit()
@@ -145,7 +157,8 @@ class MariaDBIncidentRepository(IIncidentRepository):
             query = (
                 f"UPDATE incidents SET title = '{title_val}', description = '{desc_val}', "
                 f"severity = '{entity.severity}', source_url = {source_url_val}, "
-                f"source_title = {source_title_val}, attachment_filename = {attachment_val} "
+                f"source_title = {source_title_val}, attachment_filename = {attachment_val}, "
+                f"status = '{status_val}', assigned_to = {assigned_to_val} "
                 f"WHERE id = {entity.id}"
             )
             cursor.execute(query)

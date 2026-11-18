@@ -59,5 +59,100 @@
     <p>Nexus Digital Solutions (NDS) &copy; 2026 Sentinel Security Incident Management Platform — Internal Prototype</p>
   </footer>
 
+  {% if session.get('user_id') %}
+  <!-- Session Inactivity Warning Modal (10 min lifetime) -->
+  <div id="sessionModal" class="session-modal-overlay">
+    <div class="session-modal-box">
+      <h3>⏳ Aviso de Expiración de Sesión</h3>
+      <p>Tu sesión expirará pronto por inactividad tras 10 minutos. ¿Deseas extender tu sesión?</p>
+      <div id="sessionCountdown" class="session-countdown">02:00</div>
+      <div class="session-modal-actions">
+        <button id="btnExtendSession" class="btn btn-primary" style="padding: 0.5rem 1.25rem;">Extender Sesión</button>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Cerrar Sesión</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // 10 minutes total = 600 seconds. Show popup when 120s remaining (after 8 min of inactivity).
+      var totalLifetime = 600;
+      var remainingSeconds = totalLifetime;
+      var modal = document.getElementById("sessionModal");
+      var countdownEl = document.getElementById("sessionCountdown");
+      var btnExtend = document.getElementById("btnExtendSession");
+      var extending = false;
+      var lastResetTime = Date.now();
+
+      function formatTime(sec) {
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+      }
+
+      // Reset inactivity timer on any user activity (debounced — max once every 5 seconds)
+      function resetTimer() {
+        var now = Date.now();
+        if (now - lastResetTime < 5000) return; // Debounce: ignore if last reset was <5s ago
+        lastResetTime = now;
+        remainingSeconds = totalLifetime;
+        // Hide modal if it was showing
+        modal.classList.remove("active");
+      }
+
+      // Listen for user activity events
+      document.addEventListener("click", resetTimer);
+      document.addEventListener("keydown", resetTimer);
+      document.addEventListener("mousemove", resetTimer);
+      document.addEventListener("scroll", resetTimer);
+
+      var timerInterval = setInterval(function() {
+        remainingSeconds--;
+
+        if (remainingSeconds <= 120 && remainingSeconds > 0) {
+          modal.classList.add("active");
+          countdownEl.textContent = formatTime(remainingSeconds);
+        } else if (remainingSeconds <= 0) {
+          clearInterval(timerInterval);
+          window.location.href = "{{ url_for('auth.login') }}";
+        }
+      }, 1000);
+
+      // Extend button: calls server to reset server-side session, resets client timer
+      btnExtend.addEventListener("click", function(e) {
+        e.stopPropagation(); // Don't trigger the document click resetTimer
+        if (extending) return; // Prevent flood of requests
+        extending = true;
+        btnExtend.disabled = true;
+        btnExtend.textContent = "Extendiendo...";
+
+        fetch("{{ url_for('auth.extend_session') }}", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json"
+          }
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.status === "success") {
+            remainingSeconds = totalLifetime;
+            lastResetTime = Date.now();
+            modal.classList.remove("active");
+          }
+        })
+        .catch(function(err) {
+          console.error("Error extending session:", err);
+        })
+        .finally(function() {
+          extending = false;
+          btnExtend.disabled = false;
+          btnExtend.textContent = "Extender Sesión";
+        });
+      });
+    })();
+  </script>
+  {% endif %}
+
 </body>
 </html>

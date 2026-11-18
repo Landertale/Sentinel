@@ -4,7 +4,9 @@ Assembles the layered architecture: Database -> Repositories -> Services -> Blue
 """
 
 import os
-from flask import Flask
+import time
+from datetime import timedelta
+from flask import Flask, session, request, redirect, url_for, flash
 from app.repositories import (
     DatabaseConnection,
     MariaDBUserRepository,
@@ -36,6 +38,7 @@ def create_app(test_config: dict = None) -> Flask:
     # NOTE (R19 Shortcut): Hardcoded weak SECRET_KEY, no secure session cookie flags
     app.config.from_mapping(
         SECRET_KEY="sentinel-insecure-prototype-secret-key",
+        PERMANENT_SESSION_LIFETIME=timedelta(minutes=10),
         DB_HOST=os.environ.get("DB_HOST", "127.0.0.1"),
         DB_PORT=int(os.environ.get("DB_PORT", 3306)),
         DB_USER=os.environ.get("DB_USER", "root"),
@@ -83,5 +86,24 @@ def create_app(test_config: dict = None) -> Flask:
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(incident_bp)
+
+    @app.before_request
+    def enforce_session_timeout():
+        """
+        Enforce 10-minute session expiration.
+        If inactive for more than 600 seconds, invalidate session and redirect to login.
+        """
+        if "user_id" in session:
+            now = time.time()
+            last_activity = session.get("last_activity")
+            # 10 minutes = 600 seconds
+            if last_activity and (now - last_activity > 600):
+                session.clear()
+                flash("Your session has expired due to 10 minutes of inactivity. Please log in again.", "warning")
+                return redirect(url_for("auth.login"))
+
+            # Refresh last activity timestamp for standard web requests (except extending endpoint)
+            if request.endpoint != "auth.extend_session" and not request.path.startswith("/static"):
+                session["last_activity"] = now
 
     return app

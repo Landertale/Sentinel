@@ -80,7 +80,13 @@ class IIncidentRepository(IBaseRepository[Incident]):
     """
 
     @abstractmethod
-    def search_and_filter(self, search_term: Optional[str] = None, severity: Optional[str] = None) -> List[Incident]:
+    def search_and_filter(
+        self,
+        search_term: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        created_by: Optional[str] = None
+    ) -> List[Incident]:
         """
         Search and filter incidents with substring matching and severity criteria.
         

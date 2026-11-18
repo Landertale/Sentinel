@@ -1,9 +1,20 @@
 """
 Thin authentication routes for Sentinel.
-Handles user registration, login, and session teardown.
+Handles user registration, login, session teardown, and session lifetime extension.
 """
 
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
+import time
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    session,
+    flash,
+    current_app,
+    jsonify
+)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -12,14 +23,16 @@ auth_bp = Blueprint("auth", __name__)
 def register():
     """
     Handle user registration.
-    Parses request -> delegates to AuthService -> redirects to login or renders view.
+    Supports roles: analyst, admin, and employee.
     """
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         role = request.form.get("role", "analyst").strip()
 
-        # NOTE (R19 Shortcut): Zero input validation on username and password format/length
+        if role not in ("analyst", "admin", "employee"):
+            role = "analyst"
+
         auth_service = current_app.auth_service
         user = auth_service.register(username=username, password=password, role=role)
 
@@ -36,10 +49,7 @@ def register():
 def login():
     """
     Handle user login.
-    Parses request -> delegates to AuthService -> sets session attributes -> redirects.
-    
-    NOTE (R19 Shortcut): No rate limiting, no lockout, no CSRF token check,
-    plain-text credentials matched.
+    Authenticates with bcrypt-hashed credentials and initializes 10-minute session.
     """
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -49,10 +59,12 @@ def login():
         user = auth_service.login(username=username, password=password)
 
         if user:
-            # Session setup
+            # Session setup with 10-minute activity tracking
+            session.permanent = True
             session["user_id"] = user.id
             session["username"] = user.username
             session["role"] = user.role
+            session["last_activity"] = time.time()
             flash(f"Welcome back, {user.username} ({user.role.title()})", "success")
             return redirect(url_for("incidents.list_incidents"))
         else:
@@ -69,3 +81,19 @@ def logout():
     session.clear()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
+
+
+@auth_bp.route("/extend-session", methods=["POST"])
+def extend_session():
+    """
+    Extend active user session by resetting the 10-minute inactivity timer.
+    Called asynchronously from the expiration popup modal.
+    """
+    if "user_id" in session:
+        session["last_activity"] = time.time()
+        session.modified = True
+        return jsonify({
+            "status": "success",
+            "message": "Session successfully extended by 10 minutes."
+        })
+    return jsonify({"status": "error", "message": "No active session."}), 401

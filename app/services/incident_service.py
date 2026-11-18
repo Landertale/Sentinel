@@ -41,15 +41,12 @@ class IncidentService:
         created_by: str,
         source_url: Optional[str] = None,
         attachment_file = None,
-        upload_folder: str = "app/static/uploads"
+        upload_folder: str = "app/static/uploads",
+        status: str = "New",
+        assigned_to: Optional[str] = None
     ) -> Incident:
         """
         Create and persist a new security incident.
-        
-        NOTE (R19 Shortcut):
-        1. Source URL is fetched without SSRF validation.
-        2. Attachment file is saved directly using original unvalidated filename
-           without file type/extension verification or path sanitization.
         
         :param title: Incident title
         :param description: Incident description
@@ -58,6 +55,8 @@ class IncidentService:
         :param source_url: Optional external intelligence URL
         :param attachment_file: Optional Werkzeug FileStorage object
         :param upload_folder: Target directory path for file attachments
+        :param status: Incident status ('New', 'Assigned to', 'Resolved')
+        :param assigned_to: Assigned analyst username
         :return: Persisted Incident entity
         """
         source_title = None
@@ -66,7 +65,6 @@ class IncidentService:
 
         attachment_filename = None
         if attachment_file and hasattr(attachment_file, "filename") and attachment_file.filename:
-            # Shortcut: Use raw uploaded filename without secure_filename or extension validation
             raw_filename = os.path.basename(attachment_file.filename)
             os.makedirs(upload_folder, exist_ok=True)
             destination = os.path.join(upload_folder, raw_filename)
@@ -80,27 +78,65 @@ class IncidentService:
             created_by=created_by,
             source_url=source_url,
             source_title=source_title,
-            attachment_filename=attachment_filename
+            attachment_filename=attachment_filename,
+            status=status,
+            assigned_to=assigned_to
         )
         return self._incident_repo.save(incident)
 
     def list_incidents(
         self,
         search_term: Optional[str] = None,
-        severity_filter: Optional[str] = None
+        severity_filter: Optional[str] = None,
+        status_filter: Optional[str] = None,
+        created_by: Optional[str] = None
     ) -> List[Incident]:
         """
-        List incidents matching search term and severity filter.
+        List incidents matching search term, severity, status, and creator filters.
         Results are returned ordered most recent first.
         
         :param search_term: Substring filter for title/description
         :param severity_filter: Target severity level
+        :param status_filter: Target status ('New', 'Assigned to', 'Resolved')
+        :param created_by: Creator filter (e.g. for employees seeing only their own incidents)
         :return: List of Incident entities
         """
         return self._incident_repo.search_and_filter(
             search_term=search_term,
-            severity=severity_filter
+            severity=severity_filter,
+            status=status_filter,
+            created_by=created_by
         )
+
+    def update_incident_status_and_assignee(
+        self,
+        incident_id: int,
+        status: str,
+        assigned_to: Optional[str] = None
+    ) -> Optional[Incident]:
+        """
+        Update the status and assigned analyst of an incident.
+        
+        :param incident_id: Incident primary key
+        :param status: New status ('New', 'Assigned to', 'Resolved')
+        :param assigned_to: Optional analyst username assigned
+        :return: Updated Incident or None
+        """
+        incident = self._incident_repo.get_by_id(incident_id)
+        if not incident:
+            return None
+        incident.status = status
+        incident.assigned_to = assigned_to if status == "Assigned to" else (assigned_to or None)
+        return self._incident_repo.save(incident)
+
+    def delete_incident(self, incident_id: int) -> bool:
+        """
+        Delete an incident by ID.
+        
+        :param incident_id: Incident primary key
+        :return: True if successfully deleted, False otherwise
+        """
+        return self._incident_repo.delete(incident_id)
 
     def get_incident_by_id(self, incident_id: int) -> Optional[Incident]:
         """

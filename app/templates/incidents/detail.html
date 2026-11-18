@@ -16,13 +16,29 @@
           <span style="color: var(--accent-cyan); font-weight: 700; font-size: 1.1rem;">#{{ incident.id }}</span>
           <h1 class="card-title" style="font-size: 1.4rem;">{{ incident.title }}</h1>
         </div>
-        <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 1.5rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 1.5rem; flex-wrap: wrap;">
           <span>👤 Reported by <strong>{{ incident.created_by }}</strong></span>
           <span>🕒 {{ incident.created_at or 'Recently created' }}</span>
+          <span>📌 Status: 
+            {% if incident.status == 'New' %}
+              <span class="badge-status status-new">New</span>
+            {% elif incident.status == 'Assigned to' %}
+              <span class="badge-status status-assigned">Assigned to: <strong>{{ incident.assigned_to or 'Unassigned' }}</strong></span>
+            {% elif incident.status == 'Resolved' %}
+              <span class="badge-status status-resolved">Resolved</span>
+            {% else %}
+              <span class="badge-status status-new">{{ incident.status }}</span>
+            {% endif %}
+          </span>
         </div>
       </div>
-      <div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
         <span class="badge-severity severity-{{ incident.severity }}">{{ incident.severity }}</span>
+        {% if session.get('role') == 'admin' %}
+          <form method="POST" action="{{ url_for('incidents.delete_incident', incident_id=incident.id) }}" onsubmit="return confirm('¿Seguro que deseas eliminar el Incidente #{{ incident.id }}? Esta acción no se puede deshacer.');" style="margin: 0;">
+            <button type="submit" class="btn btn-secondary" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); padding: 0.35rem 0.75rem; font-size: 0.8rem;">🗑️ Eliminar</button>
+          </form>
+        {% endif %}
       </div>
     </div>
 
@@ -57,6 +73,47 @@
         </div>
         <a href="{{ url_for('incidents.download_attachment', filename=incident.attachment_filename) }}" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.85rem;">Download</a>
       </div>
+    </div>
+    {% endif %}
+
+    <!-- Status & Assignment Management (Analysts & Admins) -->
+    {% if session.get('role') != 'employee' %}
+    <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color);">
+      <h3 style="font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.75rem;">⚙️ Update Incident Status & Analyst Assignment</h3>
+      <form method="POST" action="{{ url_for('incidents.update_status', incident_id=incident.id) }}" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 170px;">
+          <label for="detail_status">Status</label>
+          <select id="detail_status" name="status" onchange="toggleDetailAssignee(this.value)">
+            <option value="New" {% if incident.status == 'New' %}selected{% endif %}>New</option>
+            <option value="Assigned to" {% if incident.status == 'Assigned to' %}selected{% endif %}>Assigned to</option>
+            <option value="Resolved" {% if incident.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="detailAssigneeGroup" style="margin-bottom: 0; min-width: 200px; {% if incident.status != 'Assigned to' %}display: none;{% endif %}">
+          <label for="detail_assigned_to">Assignee (Analyst)</label>
+          <select id="detail_assigned_to" name="assigned_to">
+            <option value="">-- Select Analyst --</option>
+            {% for a in analysts %}
+              <option value="{{ a.username }}" {% if incident.assigned_to == a.username %}selected{% endif %}>{{ a.username }} ({{ a.role }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <button type="submit" class="btn btn-primary" style="height: 42px;">Save Changes</button>
+        </div>
+      </form>
+      <script>
+        function toggleDetailAssignee(val) {
+          var el = document.getElementById('detailAssigneeGroup');
+          if (val === 'Assigned to') {
+            el.style.display = 'block';
+          } else {
+            el.style.display = 'none';
+          }
+        }
+      </script>
     </div>
     {% endif %}
   </div>

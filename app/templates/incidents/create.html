@@ -30,6 +30,40 @@
         </select>
       </div>
 
+      {% if session.get('role') != 'employee' %}
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label for="status">Initial Status</label>
+          <select id="status" name="status" onchange="toggleAssigneeField(this.value)">
+            <option value="New" selected>New</option>
+            <option value="Assigned to">Assigned to</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="assigneeGroup" style="display: none;">
+          <label for="assigned_to">Assign to Analyst</label>
+          <select id="assigned_to" name="assigned_to">
+            <option value="">-- Select Analyst --</option>
+            {% for a in analysts %}
+              <option value="{{ a.username }}">{{ a.username }} ({{ a.role }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <script>
+        function toggleAssigneeField(val) {
+          var grp = document.getElementById('assigneeGroup');
+          if (val === 'Assigned to') {
+            grp.style.display = 'block';
+          } else {
+            grp.style.display = 'none';
+          }
+        }
+      </script>
+      {% endif %}
+
       <div class="form-group">
         <label for="description">Investigation Summary / Timeline *</label>
         <textarea id="description" name="description" rows="5" placeholder="Detail observed IOCs, compromised hosts, timestamps, and containment steps..." required></textarea>
