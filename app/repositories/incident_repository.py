@@ -1,5 +1,5 @@
 """
-Concrete SQLite implementation of IIncidentRepository.
+Concrete MariaDB implementation of IIncidentRepository.
 Handles persistence, search, and retrieval of security incident records.
 """
 
@@ -9,16 +9,16 @@ from app.repositories.database import DatabaseConnection
 from app.models.incident import Incident
 
 
-class SQLiteIncidentRepository(IIncidentRepository):
+class MariaDBIncidentRepository(IIncidentRepository):
     """
-    SQLite implementation of the Incident repository.
+    MariaDB implementation of the Incident repository.
     NOTE (R19 Shortcut): Search and filtering operations use string interpolation
     in raw SQL statements with zero input validation or escaping.
     """
 
     def __init__(self, db: DatabaseConnection):
         """
-        Initialize the SQLiteIncidentRepository.
+        Initialize the MariaDBIncidentRepository.
         
         :param db: DatabaseConnection instance providing active database access.
         """
@@ -26,9 +26,9 @@ class SQLiteIncidentRepository(IIncidentRepository):
 
     def _row_to_incident(self, row) -> Incident:
         """
-        Helper method to map a SQLite Row into an Incident domain object.
+        Helper method to map a database row into an Incident domain object.
         
-        :param row: sqlite3.Row instance
+        :param row: Row dictionary instance
         :return: Incident domain instance
         """
         return Incident(
@@ -172,5 +172,5 @@ class SQLiteIncidentRepository(IIncidentRepository):
 
 
 # Aliases for compatibility
-MariaDBIncidentRepository = SQLiteIncidentRepository
-IncidentRepository = SQLiteIncidentRepository
+IncidentRepository = MariaDBIncidentRepository
+SQLiteIncidentRepository = MariaDBIncidentRepository

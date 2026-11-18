@@ -1,5 +1,5 @@
 """
-Concrete SQLite implementation of ICommentRepository.
+Concrete MariaDB implementation of ICommentRepository.
 Handles persistence and retrieval of analyst investigation comments.
 """
 
@@ -9,16 +9,16 @@ from app.repositories.database import DatabaseConnection
 from app.models.comment import Comment
 
 
-class SQLiteCommentRepository(ICommentRepository):
+class MariaDBCommentRepository(ICommentRepository):
     """
-    SQLite implementation of the Comment repository.
+    MariaDB implementation of the Comment repository.
     NOTE (R19 Shortcut): Stores and fetches comments verbatim without sanitization,
     allowing raw HTML/scripts to be stored directly.
     """
 
     def __init__(self, db: DatabaseConnection):
         """
-        Initialize SQLiteCommentRepository.
+        Initialize MariaDBCommentRepository.
         
         :param db: DatabaseConnection instance providing active database access.
         """
@@ -26,9 +26,9 @@ class SQLiteCommentRepository(ICommentRepository):
 
     def _row_to_comment(self, row) -> Comment:
         """
-        Map a SQLite row to a Comment domain instance.
+        Map a database row to a Comment domain instance.
         
-        :param row: sqlite3.Row instance
+        :param row: Row dictionary instance
         :return: Comment domain instance
         """
         return Comment(
@@ -139,5 +139,5 @@ class SQLiteCommentRepository(ICommentRepository):
 
 
 # Aliases for compatibility
-MariaDBCommentRepository = SQLiteCommentRepository
-CommentRepository = SQLiteCommentRepository
+CommentRepository = MariaDBCommentRepository
+SQLiteCommentRepository = MariaDBCommentRepository

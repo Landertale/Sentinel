@@ -1,6 +1,6 @@
 """
-Concrete SQLite implementation of IUserRepository.
-Handles persistence and retrieval of User entities using direct SQLite queries.
+Concrete MariaDB implementation of IUserRepository.
+Handles persistence and retrieval of User entities using direct MariaDB queries.
 """
 
 from typing import List, Optional
@@ -9,16 +9,16 @@ from app.repositories.database import DatabaseConnection
 from app.models.user import User, user_factory
 
 
-class SQLiteUserRepository(IUserRepository):
+class MariaDBUserRepository(IUserRepository):
     """
-    SQLite implementation of the User repository.
+    MariaDB implementation of the User repository.
     NOTE (R19 Shortcut): Executes string-built raw SQL queries without parameterized inputs
     and handles passwords in plain text per rapid prototype constraints.
     """
 
     def __init__(self, db: DatabaseConnection):
         """
-        Initialize the SQLiteUserRepository.
+        Initialize the MariaDBUserRepository.
         
         :param db: DatabaseConnection instance providing active database access.
         """
@@ -152,5 +152,5 @@ class SQLiteUserRepository(IUserRepository):
 
 
 # Aliases for compatibility
-MariaDBUserRepository = SQLiteUserRepository
-UserRepository = SQLiteUserRepository
+UserRepository = MariaDBUserRepository
+SQLiteUserRepository = MariaDBUserRepository
