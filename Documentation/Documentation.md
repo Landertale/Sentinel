@@ -1,234 +1,230 @@
 # PROJECT SENTINEL — Technical & Security Architecture Report
-## Informe Técnico de Arquitectura, Superficie de Ataque y Control de Acceso
+## Systems Architecture, Attack Surface Mapping & Access Control Documentation
 **Nexus Digital Solutions (NDS) · Internal Cybersecurity Platform**  
-**Document Version:** 2.0 (Fases 1 y 2)  
+**Document Version:** 2.0 (Phases 1 & 2)  
 **Authors:** Lander García Dávila & Jone López San Juan (Sentinel Engineering Squad)  
 **Stakeholders:** CEO Miren Arriaga, CTO Eneko Bermejo, SOC Manager Nerea Agirre  
 **Project Repository:** `/var/www/html/Sentinel`  
 
 ---
 
-## Resumen Ejecutivo
+## Executive Summary
 
-Este documento constituye la memoria técnica, especificación de diseño de sistemas y auditoría de seguridad de **Sentinel**, la plataforma de gestión de incidentes de seguridad desarrollada internamente para **Nexus Digital Solutions (NDS)**.
+This document serves as the authoritative technical specification, system design manual, and security audit report for **Sentinel**, an internal Security Incident Management Platform engineered for **Nexus Digital Solutions (NDS)**.
 
-El proyecto surge para resolver la exposición de información sensible debida al uso de hojas de cálculo compartidas y canales de mensajería. Tras el desarrollo del prototipo base, la Responsable del SOC (Nerea Agirre) registró la incidencia **INC-2026-001**, descubriendo una vulnerabilidad de tipo IDOR (*Insecure Direct Object Reference*) que permitía a cualquier empleado visualizar incidentes de clientes reportados por otros compañeros simplemente cambiando el identificador numérico en la URL.
+The project was commissioned to eliminate severe data leakage risks resulting from the use of uncoordinated spreadsheets and chat channels for security tracking. Following the deployment of the initial base prototype, SOC Manager Nerea Agirre filed security incident report **INC-2026-001**, discovering an Insecure Direct Object Reference (IDOR) vulnerability that allowed standard employees to inspect confidential client incident records created by other staff simply by changing the numeric ID in the URL.
 
-Este informe da cumplimiento formal a la totalidad de los requisitos especificados en:
-1. **Fase 1 (Fundamentos de la Aplicación y Arquitectura Orientada a Objetos):**
-   * **Team Charter (R18):** Organización del squad, roles, normas y flujo en Git.
-   * **Informe de Seguridad y Diseño — Sección 1 (R19):** Arquitectura en 3 capas, modelos de dominio, interfaces de repositorio y catálogo de atajos técnicos del prototipo base.
-2. **Fase 2 (Superficie de Ataque, Autenticación y Control de Acceso):**
-   * **Mapeo de la Superficie de Ataque (R1, R2, R9):** Inventario exhaustivo de todos los endpoints, entradas, parámetros, archivos y fronteras de confianza.
-   * **Autenticación y Control de Acceso — Sección 2 (R3–R9):** Modelo de roles (RBAC/ABAC), contraseñas seguras con `bcrypt`, control y expiración de sesiones por inactividad y resolución completa del IDOR.
+This report satisfies all documentation requirements for **Phase 1** and **Phase 2**:
+1. **Phase 1 (Application Foundations & Object-Oriented Architecture):**
+   * **Team Charter (R18):** Squad organization, roles, working agreements, and Git workflow.
+   * **Security & Design Report — Section 1 (R19):** 3-tier modular architecture, domain models, interface abstractions, and catalog of intentional baseline shortcuts.
+2. **Phase 2 (Attack Surface Mapping, Authentication & Access Control):**
+   * **Attack Surface Map (R1, R2, R9):** Complete inventory of all endpoints, parameters, data flows, trust boundaries, and controller mappings.
+   * **Authentication & Access Control — Section 2 (R3–R9):** Role-based access control (RBAC/ABAC), cryptographic password hashing with `bcrypt`, inactivity session timeout handling, and end-to-end server-side IDOR remediation.
 
 ---
 
-# 1. Team Charter del Squad (Requisito R18 — Fase 1)
+# 1. Team Charter (Requirement R18 — Phase 1)
 
-### 1.1 Composición y Roles del Equipo
-* **Nombre del Squad:** Sentinel Security Engineering Squad (Nexus Squad 4)
-* **Organización:** Nexus Digital Solutions (NDS)
-* **Misión:** Diseñar, desarrollar, securizar y operar la plataforma Sentinel para brindar al SOC y a la plantilla de NDS una herramienta centralizada, fiable y auditable de gestión de incidentes.
+### 1.1 Squad Overview & Role Assignments
+* **Squad Name:** Sentinel Security Engineering Squad (Nexus Squad 4)
+* **Organization:** Nexus Digital Solutions (NDS)
+* **Mission:** Design, develop, secure, and operate the Sentinel platform to provide SOC analysts and NDS personnel with a centralized, reliable, and auditable incident lifecycle tool.
 
-| Miembro del Squad | Rol de Ingeniería | Responsabilidades Clave |
+| Squad Member | Engineering Role | Core Responsibilities |
 | :--- | :--- | :--- |
-| **Lander García Dávila** | **Lead Backend Engineer & Security Architect** | Diseño de modelos de dominio OOP (`User`, `Incident`, `Comment`, `Attachment`), persistencia MariaDB con interfaces abstractas (`abc.ABC`), lógica de negocio en servicios, implementación de hashing seguro con `bcrypt` y protección estricta contra IDOR. |
-| **Jone López San Juan** | **DevOps, Infrastructure & Frontend Specialist** | Despliegue en Apache2 con `mod_wsgi`, configuración y gestión de MariaDB, entornos virtuales, plantillas Jinja2, diseño visual SOC dark theme, modal interactivo de expiración de sesión y documentación de puesta en marcha. |
+| **Lander García Dávila** | **Lead Backend Engineer & Security Architect** | OOP domain entity design (`User`, `Incident`, `Comment`, `Attachment`), repository layer abstractions (`abc.ABC`), MariaDB persistence, service business logic, `bcrypt` password hashing, and server-side IDOR mitigation. |
+| **Jone López San Juan** | **DevOps, Infrastructure & Frontend Specialist** | Apache2 `mod_wsgi` deployment, MariaDB configuration, virtual environment management, Jinja2 presentation templates, SOC dark theme CSS, session inactivity modal, and operations manual. |
 
-### 1.2 Acuerdos de Trabajo (Working Agreement & Definition of Done)
+### 1.2 Working Agreements & Definition of Done (DoD)
 
-1. **Separación Estricta de Capas (3-Tier Architecture):**
-   * Las rutas web nunca tocan la base de datos ni ejecutan consultas SQL directamente.
-   * Los servicios nunca construyen HTML ni procesan objetos `request` o `session` de Flask.
-2. **Orientación a Objetos y Contratos:**
-   * Las entidades de dominio encapsulan su estado mediante atributos privados (`_id`, `_username`, `_password`, `_title`) y decoradores `@property`.
-   * Los repositorios de persistencia se implementan detrás de interfaces abstractas (`IBaseRepository`, `IUserRepository`, etc.).
-3. **Seguridad en el Servidor:**
-   * No se confía en validaciones del cliente o del navegador. Toda decisión de autorización (RBAC/ABAC) se valida en el backend en cada petición.
-4. **Transparencia Técnica:**
-   * Todo atajo asumido por motivos de entrega rápida debe quedar catalogado con su categoría OWASP correspondiente.
+1. **Strict 3-Tier Layered Architecture:**
+   * Routes parse requests and invoke services; routes *never* touch the database directly or execute SQL queries.
+   * Services encapsulate business logic and *never* construct HTML or handle Flask `request` or `session` objects directly.
+2. **Object-Oriented Integrity & Interface Contracts:**
+   * Domain models encapsulate internal state using private attributes (`_id`, `_username`, `_password`, `_title`) and `@property` decorators.
+   * Repositories are implemented behind formal abstract interfaces (`IBaseRepository`, `IUserRepository`, etc.).
+3. **Server-Side Security Enforcement:**
+   * Never trust client-side or browser validation. All authorization checks (RBAC/ABAC) are strictly validated on the server for every request.
+4. **Technical Transparency:**
+   * All shortcuts adopted to satisfy rapid prototyping timelines are formally recorded in the Vulnerability & Shortcut Register with corresponding OWASP classifications.
 
-### 1.3 Flujo de Trabajo en Git y Control de Versiones
+### 1.3 Git Workflow & Version Control Conventions
 
-* **Repositorio Oficial:** Alojado en GitHub (`https://github.com/Landertale/Sentinel.git`).
-* **Estrategia de Ramas:**
-  * Rama principal `main`: Rama de producción protegida y desplegable en Apache2 mediante WSGI.
-  * Commits atómicos, frecuentes y significativos (*commit early, commit often*).
-* **Convención de Commits:**
-  * Uso de mensajes descriptivos con prefijo de componente (ej. `Security features: bcrypt passwords, employee role with IDOR protection`, `uso de MariaDB`, `Elimination of residual code pending from when the application used sqlite`).
-
----
-
-# 2. Arquitectura y Diseño del Sistema (Requisito R19 — Fase 1)
-
-### 2.1 Visión General de la Aplicación
-
-Sentinel resuelve la problemática de gestión de incidentes de NDS integrando las siguientes funcionalidades:
-* **Autenticación de usuarios:** Registro, inicio y cierre de sesión seguro.
-* **Ciclo de vida de incidentes:** Creación con título, descripción y severidad (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), seguimiento de estados (`New`, `Assigned to`, `Resolved`) y asignación a analistas.
-* **Listado y detalle:** Visualización ordenada cronológicamente (más recientes primero) y vista detallada individual.
-* **Notas de investigación:** Comentarios colaborativos vinculados a cada incidente.
-* **Búsqueda:** Filtrado por coincidencia de subcadena en títulos y descripciones.
-* **Archivos adjuntos:** Almacenamiento y descarga de artefactos y evidencias forenses.
-* **Previsualización de enlaces:** Extracción automática de títulos HTML `<title>` desde enlaces de inteligencia de amenazas.
-* **Preferencias:** Almacenamiento en cookie del filtro de severidad predeterminado.
+* **Official Repository:** Hosted on GitHub (`https://github.com/Landertale/Sentinel.git`).
+* **Branching Strategy:**
+  * Protected `main` branch, continuously deployable to Apache2 WSGI.
+  * Commits are frequent, atomic, and descriptive (*commit early, commit often*).
+* **Commit Conventions:**
+  * Semantic component prefixes (e.g., `Security features: bcrypt passwords, employee role with IDOR protection`, `uso de MariaDB`, `Elimination of residual code pending from when the application used sqlite`).
 
 ---
 
-### 2.2 Estructura en 3 Capas (R10)
+# 2. System Architecture & Design (Requirement R19 — Phase 1)
 
-Sentinel implementa una arquitectura modular desacoplada:
+### 2.1 Application Overview & Problem Statement
+
+Sentinel provides an internal management dashboard for security incident response:
+* **User Authentication & Management:** Secure registration, authentication, and session teardown.
+* **Incident Lifecycle Management:** Incident reporting with severity classification (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), status progression (`New`, `Assigned to`, `Resolved`), and analyst assignment.
+* **Incident Queue & Detail Views:** Chronological incident queue (most recent first) and comprehensive incident detail views.
+* **Collaborative Timeline & Notes:** Investigation comments and forensic notes attached directly to incident records.
+* **Substring Search:** Fast filtering across incident titles and descriptions.
+* **Evidence Attachments:** Upload and download of forensic log artifacts and packet captures.
+* **Threat Intelligence Link Preview:** Automated extraction of HTML `<title>` tags from external URLs.
+* **Client Preferences:** Cookie-based retention of user-selected default severity filters.
+
+---
+
+### 2.2 Layered 3-Tier Architecture (R10)
+
+Sentinel adheres strictly to a decoupled 3-tier object-oriented architecture:
 
 ```mermaid
 graph TD
-    Client[Navegador del Usuario / Analista] -->|Petición HTTP| RouteLayer[Capa de Rutas - Thin Blueprints]
-    RouteLayer -->|Llamadas a Servicios| ServiceLayer[Capa de Negocio - Servicios]
-    ServiceLayer -->|Operaciones con Objetos| DomainLayer[Modelos de Dominio - OOP]
-    ServiceLayer -->|Contratos Abstractos| RepoInterface[Interfaces de Repositorio - ABC]
-    RepoInterface -->|Consultas SQL| RepoImpl[Repositorios Concretos MariaDB]
-    RepoImpl -->|Conexión TCP / Socket| DB[(Base de Datos MariaDB - 'sentinel')]
+    Client[Web Browser / Analyst Client] -->|HTTP Requests| RouteLayer[Route Layer - Thin Blueprints]
+    RouteLayer -->|Service Method Calls| ServiceLayer[Service Layer - Business Logic]
+    ServiceLayer -->|Domain Entity Operations| DomainLayer[Domain Models - OOP Entities]
+    ServiceLayer -->|Abstract Repository Contracts| RepoInterface[Repository Interfaces - ABC]
+    RepoInterface -->|SQL Execution| RepoImpl[MariaDB Concrete Repositories]
+    RepoImpl -->|TCP / UNIX Socket| DB[(MariaDB Database - 'sentinel')]
 ```
 
-* **Capa de Rutas (`app/routes/`):** Controladores ligeros (`auth_routes.py`, `incident_routes.py`, `main_routes.py`) que gestionan la petición HTTP entrante, validan la sesión, invocan el servicio correspondiente y devuelven la plantilla Jinja2 o redirección.
-* **Capa de Negocio (`app/services/`):** Contiene la lógica operativa (`AuthService`, `IncidentService`, `PreviewService`), coordinando las reglas de negocio, hashing de contraseñas y repositorios.
-* **Capa de Persistencia (`app/repositories/`):** Aísla el acceso a datos (`database.py`, `user_repository.py`, `incident_repository.py`, `comment_repository.py`) detrás de interfaces abstractas.
-* **Capa de Dominio (`app/models/`):** Define las clases del negocio (`user.py`, `incident.py`, `comment.py`, `attachment.py`).
+* **Route / Presentation Layer (`app/routes/`):** Thin controllers (`auth_routes.py`, `incident_routes.py`, `main_routes.py`) responsible for parsing incoming HTTP requests, inspecting session cookies, invoking service methods, and returning Jinja2 templates or redirects.
+* **Service / Business Logic Layer (`app/services/`):** Encapsulates core application logic (`AuthService`, `IncidentService`, `PreviewService`), cryptographic password hashing, link previews, and repository coordination.
+* **Data Access / Repository Layer (`app/repositories/`):** Decouples data storage behind abstract interfaces (`IBaseRepository`, `IUserRepository`, `IIncidentRepository`, `ICommentRepository`) implemented for MariaDB.
+* **Domain Entity Layer (`app/models/`):** Object-oriented domain entities (`User`, `Employee`, `Analyst`, `Admin`, `Incident`, `Comment`, `Attachment`).
 
 ---
 
-### 2.3 Ingeniería Orientada a Objetos (R12 a R16)
+### 2.3 Object-Oriented Engineering Principles (R12 to R16)
 
-* **Encapsulamiento (R12, R13):** Las entidades protegen sus atributos como privados (`_id`, `_username`, `_password`, `_title`, etc.) y exponen getters/setters controlados mediante `@property`.
-* **Herencia y Polimorfismo (R14):** Se define la clase base `User` y sus subclases especializadas `Employee`, `Analyst` y `Admin`, implementando métodos polimórficos como `can_view_all_incidents()`, `can_delete_incidents()` y `is_admin()`.
-* **Interfaces Abstractas (R15):** Se utilizan `abc.ABC` y `typing.Generic[T]` para definir los contratos `IBaseRepository`, `IUserRepository`, `IIncidentRepository` e `ICommentRepository`.
-* **Factoría de Dominio:** La función `user_factory` crea la instancia concreta de usuario adecuada en función del rol almacenado.
+* **Encapsulation (R12, R13):** Entities protect state via private attributes (`_id`, `_username`, `_password`, `_title`, etc.) exposed safely via `@property` getters and setters.
+* **Inheritance & Polymorphism (R14):** A class hierarchy rooted in `User` specializes into `Employee`, `Analyst`, and `Admin`. Polymorphic methods (`can_view_all_incidents()`, `can_delete_incidents()`, `is_admin()`) govern domain capabilities.
+* **Abstract Interfaces (R15):** Formal contracts defined via `abc.ABC` and `typing.Generic[T]` guarantee decoupled database interactions.
+* **Domain Factory (`user_factory`):** Instantiates the appropriate `User` subclass dynamically based on stored database role attributes.
 
 ---
 
-### 2.4 Registro de Atajos Deliberados del Prototipo Base (Fase 1 / R19)
+### 2.4 Register of Deliberate Baseline Shortcuts (Phase 1 / R19)
 
-Para cumplir el plazo inicial de 3 semanas bajo premisa de prototipado rápido, se catalogaron formalmente los siguientes atajos en el prototipo base:
+To satisfy the rapid 3-week prototyping deadline of Phase 1, defensive controls were deferred. The table below catalogs all intentional baseline shortcuts:
 
-| ID | Componente Afectado | Descripción del Atajo Técnico | Categoría OWASP |
+| ID | Component / File | Shortcut Description | OWASP Top 10 Category |
 | :--- | :--- | :--- | :--- |
-| **SC-01** | `auth_service.py`<br>`user_repository.py` | **Contraseñas en texto plano:** Contraseñas recibidas, almacenadas y comprobadas en texto plano sin salt ni hash criptográfico. | **A07: Identification & Authentication Failures** |
-| **SC-02** | `incident_repository.py`<br>`user_repository.py` | **Consultas SQL con interpolación:** Consultas construidas con f-strings (`LIKE '%{search_term}%'`) sin parámetros preparados. | **A03: Injection (SQLi)** |
-| **SC-03** | `detail.html`<br>`comment_repository.py` | **Renderizado HTML en bruto:** Comentarios mostrados con el filtro `\| safe` de Jinja2 sin saneamiento de scripts. | **A03: Injection (Stored XSS)** |
-| **SC-04** | Todos los formularios<br>`incident_routes.py` | **Ausencia de tokens CSRF:** Formularios POST sin validación contra Cross-Site Request Forgery. | **A01: Broken Access Control** |
-| **SC-05** | `incident_service.py`<br>`uploads/` | **Subida de archivos sin restricción:** Archivos guardados con el nombre original sin validar extensiones ni usar identificadores UUID. | **A04: Insecure Design** |
-| **SC-06** | `preview_service.py` | **Peticiones URL externas sin filtrar:** Descarga de contenidos mediante `urllib.request` sin bloquear rangos privados (127.0.0.1, subredes locales). | **A10: Server-Side Request Forgery (SSRF)** |
-| **SC-07** | `app/__init__.py`<br>`incident_routes.py` | **Cookies sin directivas de seguridad:** Cookies almacenadas sin las directivas `HttpOnly`, `Secure` o `SameSite`. | **A05: Security Misconfiguration** |
-| **SC-08** | `app/__init__.py` | **Clave secreta débil y estática:** Variable `SECRET_KEY` definida con un valor constante en el código. | **A02: Cryptographic Failures** |
-| **SC-09** | `run.py` | **Servidor de depuración en 0.0.0.0:** Prototipo ejecutado inicialmente con `debug=True` visible en red. | **A05: Security Misconfiguration** |
+| **SC-01** | `auth_service.py`<br>`user_repository.py` | **Plain-text passwords:** Passwords stored and checked in plain text without cryptographic hashing or salts. | **A07: Identification & Authentication Failures** |
+| **SC-02** | `incident_repository.py`<br>`user_repository.py` | **Raw SQL string interpolation:** Queries constructed using f-strings (`LIKE '%{search_term}%'`) without parameterized statements. | **A03: Injection (SQLi)** |
+| **SC-03** | `detail.html`<br>`comment_repository.py` | **Raw HTML rendering in comments:** Comments rendered using Jinja2 `\| safe` filter without HTML tag sanitization. | **A03: Injection (Stored XSS)** |
+| **SC-04** | All forms in `templates/`<br>`incident_routes.py` | **Missing anti-CSRF tokens:** State-changing POST forms lack CSRF validation tokens. | **A01: Broken Access Control** |
+| **SC-05** | `incident_service.py`<br>`uploads/` | **Unvalidated file uploads:** Uploaded files written directly to filesystem without extension whitelisting. | **A04: Insecure Design** |
+| **SC-06** | `preview_service.py` | **Unvalidated external URL fetching:** External URLs fetched via `urllib` without private subnet or loopback IP filtering. | **A10: Server-Side Request Forgery (SSRF)** |
+| **SC-07** | `app/__init__.py`<br>`incident_routes.py` | **Insecure cookie flags:** Cookies stored without `HttpOnly`, `Secure`, or `SameSite` flags. | **A05: Security Misconfiguration** |
+| **SC-08** | `app/__init__.py` | **Hardcoded static secret key:** Flask `SECRET_KEY` set to static hardcoded string in repository. | **A02: Cryptographic Failures** |
+| **SC-09** | `run.py` | **Debug server on 0.0.0.0:** Werkzeug development server bound to all interfaces with `debug=True`. | **A05: Security Misconfiguration** |
 
 ---
 
-# 3. Mapeo de la Superficie de Ataque (Requisitos R1, R2 y R9 — Fase 2)
+# 3. Attack Surface Mapping (Requirements R1, R2 & R9 — Phase 2)
 
-### 3.1 Contexto: Incidente INC-2026-001 (Vulnerabilidad IDOR)
+### 3.1 Context: Incident INC-2026-001 (IDOR Vulnerability)
 
-* **Descripción:** La Responsable del SOC, Nerea Agirre, comprobó que modificando el número en la URL `/incidents/<incident_id>`, un empleado común podía inspeccionar incidentes ajenos con datos confidenciales de clientes.
-* **Causa Raíz:** Ausencia de comprobación de autorización en el servidor sobre el objeto solicitado. El código original tomaba el ID numérico de la URL y devolvía el incidente sin comprobar si el usuario en sesión era el autor del informe o si contaba con privilegios de Analista/Administrador.
+* **Incident Summary:** SOC Manager Nerea Agirre reported that standard employees could inspect confidential client incident records created by other staff simply by changing the numeric ID in the URL `/incidents/<incident_id>`.
+* **Technical Root Cause:** The detail route retrieved incident objects directly using the client-provided URL integer without verifying whether the requesting user owned the record or possessed Analyst/Admin privileges. Sequential IDs made enumeration trivial, but the actual security defect was the complete absence of server-side authorization checks.
 
 ---
 
-### 3.2 Inventario de Endpoints y Clasificación de Entradas (R1, R2)
+### 3.2 Endpoint Inventory & Input Classification (R1, R2)
 
-Sentinel expone **14 endpoints de aplicación**:
+Sentinel exposes **14 distinct application endpoints**:
 
-| Endpoint y Método | Función Controladora | ¿Requiere Autenticación? | Roles Autorizados | Entradas y Origen | Controlado Por | Propósito y Flujo de Datos | Frontera de Confianza y Riesgo |
+| Endpoint & Method | Controller Function | Auth Required? | Authorized Roles | Input Parameters & Source | Controlled By | Purpose & Data Flow | Trust Boundary & Risk Vectors |
 | :--- | :--- | :---: | :--- | :--- | :--- | :--- | :--- |
-| **`GET /`** | `main.index` | No | Cualquiera | Ninguna | N/A | Redirige al listado si hay sesión, o al login. | Frontera pública. Riesgo bajo. |
-| **`GET /register`** | `auth.register` | No | Anónimo | Ninguna | N/A | Muestra el formulario de registro. | Frontera pública. |
-| **`POST /register`** | `auth.register` | No | Anónimo | `username` (Form)<br>`password` (Form)<br>`role` (Form) | Atacante / Cliente | Registra usuario. Encripta con bcrypt y guarda en base de datos. | **Frontera Crítica.** Riesgos: Inyección SQL, manipulación de rol en formulario. |
-| **`GET /login`** | `auth.login` | No | Anónimo | Ninguna | N/A | Muestra el formulario de login. | Frontera pública. |
-| **`POST /login`** | `auth.login` | No | Anónimo | `username` (Form)<br>`password` (Form) | Atacante / Cliente | Autentica credenciales, crea sesión e inicializa temporizador de 10 min. | **Frontera Crítica.** Riesgos: Fuerza bruta, enumeración de usuarios. |
-| **`GET /logout`** | `auth.logout` | Sí | Cualquier usuario autenticado | Cookie de sesión | Navegador | Destruye la sesión del servidor con `session.clear()`. | Frontera de sesión. |
-| **`POST /extend-session`** | `auth.extend_session` | Sí | Cualquier usuario autenticado | Cookie de sesión | Cliente (AJAX) | Renueva la marca de tiempo `last_activity` por 10 minutos. | Frontera interna de sesión. |
-| **`GET /incidents`** | `incidents.list_incidents` | Sí | Employee, Analyst, Admin | `q` (Query)<br>`severity` (Query)<br>`status` (Query)<br>`sentinel_severity_pref` (Cookie) | Atacante / Cliente | Lista y filtra incidentes. Para `employee` restringe por `created_by=session['username']`. | **Frontera de Consulta.** Riesgos: Inyección SQL en búsqueda; manipulación de cookie. |
-| **`GET /incidents/new`** | `incidents.create_incident` | Sí | Employee, Analyst, Admin | Ninguna | N/A | Carga formulario de nuevo incidente y lista de analistas disponibles. | Frontera autenticada. |
-| **`POST /incidents/new`** | `incidents.create_incident` | Sí | Employee, Analyst, Admin | `title` (Form)<br>`description` (Form)<br>`severity` (Form)<br>`status` (Form)<br>`assigned_to` (Form)<br>`source_url` (Form)<br>`attachment` (File) | Atacante / Cliente | Guarda incidente. Restringe a empleados a estado `New` y sin asignación. | **Frontera de Alto Riesgo.** Riesgos: SSRF en `source_url`, subida de ficheros y SQLi. |
-| **`GET /incidents/<id>`** | `incidents.detail_incident` | Sí | Employee (solo propios), Analyst, Admin | `incident_id` (Path) | Atacante / Cliente | Muestra detalle y comentarios. Validación IDOR: aborta 403 si `employee` $\neq$ creador. | **Frontera IDOR (INC-2026-001).** Riesgos: Acceso indebido a datos. |
-| **`POST /incidents/<id>/status`** | `incidents.update_status` | Sí | Analyst, Admin (Employee bloqueado) | `incident_id` (Path)<br>`status` (Form)<br>`assigned_to` (Form) | Atacante / Cliente | Actualiza estado y asigna analista. Rechaza a empleados en el servidor. | **Frontera de Autorización.** Riesgos: Escalada vertical de privilegios. |
-| **`POST /incidents/<id>/delete`** | `incidents.delete_incident` | Sí | Admin únicamente | `incident_id` (Path) | Atacante / Cliente | Elimina definitivamente el incidente. Valida rol `admin` en servidor. | **Operación Destructiva.** Riesgos: Borrado no autorizado. |
-| **`POST /incidents/<id>/comments`** | `incidents.add_comment` | Sí | Employee (solo propios), Analyst, Admin | `incident_id` (Path)<br>`content` (Form) | Atacante / Cliente | Añade nota forense. Valida titularidad antes de guardar. | **Frontera de Contenido.** Riesgos: XSS almacenado en `content`. |
-| **`POST /preferences`** | `incidents.set_preferences` | Sí | Cualquier usuario autenticado | `default_severity` (Form) | Atacante / Cliente | Modifica cookie de preferencia `sentinel_severity_pref`. | Frontera de cliente. |
-| **`GET /uploads/<file>`** | `incidents.download_attachment` | Sí | Employee (solo propios), Analyst, Admin | `filename` (Path) | Atacante / Cliente | Descarga de evidencias. Empleados solo pueden descargar adjuntos de sus incidentes. | **Frontera de Archivos.** Riesgos: Descarga de ficheros confidenciales ajenos. |
-| **`GET /static/<file>`** | Gestor estático | No | Público | `filename` (Path) | Cliente | Entrega de archivos CSS y estáticos del sistema. | Frontera pública. |
+| **`GET /`** | `main.index` | No | Anonymous, Any | None | N/A | Landing dispatch; redirects to `/incidents` if session exists, else `/login`. | Boundary: Public web. Risk: Low. |
+| **`GET /register`** | `auth.register` | No | Anonymous, Any | None | N/A | Renders user registration form. | Boundary: Public web. |
+| **`POST /register`** | `auth.register` | No | Anonymous, Any | `username` (Form)<br>`password` (Form)<br>`role` (Form) | Attacker / Client | Creates user account. Hashes password via bcrypt; saves user in MariaDB. | **Critical Boundary:** Public input to database. Risks: SQL injection in repository, role tampering. |
+| **`GET /login`** | `auth.login` | No | Anonymous, Any | None | N/A | Renders authentication form. | Boundary: Public web. |
+| **`POST /login`** | `auth.login` | No | Anonymous, Any | `username` (Form)<br>`password` (Form) | Attacker / Client | Authenticates credentials; establishes session cookie; initializes activity timer. | **Critical Boundary:** Authentication gate. Risks: Brute force, credential stuffing. |
+| **`GET /logout`** | `auth.logout` | Yes | Any Authenticated | Session cookie | Browser | Clears session via `session.clear()`; redirects to `/login`. | Boundary: Session teardown. |
+| **`POST /extend-session`** | `auth.extend_session` | Yes | Any Authenticated | Session cookie | Browser / AJAX | Resets server session `last_activity` timestamp by 10 minutes. | Boundary: Internal session maintenance. |
+| **`GET /incidents`** | `incidents.list_incidents` | Yes | Employee, Analyst, Admin | `q` (Query)<br>`severity` (Query)<br>`status` (Query)<br>`sentinel_severity_pref` (Cookie) | Attacker / Client | Filters and retrieves incident list. Enforces employee ownership filter (`created_by=session['username']`). | **Trust Boundary:** Query parameters to SQL. Risks: SQL injection via unparameterized query; preference cookie tampering. |
+| **`GET /incidents/new`** | `incidents.create_incident` | Yes | Employee, Analyst, Admin | None | N/A | Renders incident creation form; loads analyst roster. | Boundary: Authenticated view. |
+| **`POST /incidents/new`** | `incidents.create_incident` | Yes | Employee, Analyst, Admin | `title` (Form)<br>`description` (Form)<br>`severity` (Form)<br>`status` (Form)<br>`assigned_to` (Form)<br>`source_url` (Form)<br>`attachment` (File) | Attacker / Client | Persists incident. Restricts employees to `status='New'` and `assigned_to=None`. | **High Risk Boundary:** Direct file write + outbound network call + SQL write. Risks: SSRF, arbitrary file upload. |
+| **`GET /incidents/<id>`** | `incidents.detail_incident` | Yes | Employee (own), Analyst, Admin | `incident_id` (Path) | Attacker / Client | Fetches incident details and comments. IDOR gate: aborts 403 if `employee` $\neq$ creator. | **IDOR Boundary (INC-2026-001):** Remediated gate. |
+| **`POST /incidents/<id>/status`** | `incidents.update_status` | Yes | Analyst, Admin (Employee blocked) | `incident_id` (Path)<br>`status` (Form)<br>`assigned_to` (Form) | Attacker / Client | Updates incident status and assigns analyst. Server rejects employee updates with error flash. | **Authorization Boundary:** Vertical privilege boundary. |
+| **`POST /incidents/<id>/delete`** | `incidents.delete_incident` | Yes | Admin Only | `incident_id` (Path) | Attacker / Client | Permanently deletes incident from database. Server verifies `session['role'] == 'admin'`. | **Critical Authorization Boundary:** Destructive operation. |
+| **`POST /incidents/<id>/comments`** | `incidents.add_comment` | Yes | Employee (own), Analyst, Admin | `incident_id` (Path)<br>`content` (Form) | Attacker / Client | Appends investigation note. Validates employee ownership before accepting comment. | **High Risk Boundary:** Unescaped storage. Risks: Stored XSS in `content`. |
+| **`POST /preferences`** | `incidents.set_preferences` | Yes | Any Authenticated | `default_severity` (Form) | Attacker / Client | Sets `sentinel_severity_pref` cookie for 30 days. | Boundary: Client cookie generation. |
+| **`GET /uploads/<file>`** | `incidents.download_attachment` | Yes | Employee (own), Analyst, Admin | `filename` (Path) | Attacker / Client | Serves uploaded files via `send_from_directory`. Validates employee ownership against incident list. | **Filesystem Boundary:** Direct path serving. |
+| **`GET /static/<file>`** | Static handler | No | Public / Any | `filename` (Path) | Client | Serves CSS stylesheets and client assets. | Boundary: Public web static route. |
 
 ---
 
-### 3.3 Clasificación por Frontera de Confianza (R2)
+### 3.3 Trust Boundary Input Classification (R2)
 
-1. **Identificadores numéricos de URL (`incident_id`):** Provienen del cliente. Se validan en el servidor comprobando el rol y la autoría antes de procesar el acceso.
-2. **Parámetros de búsqueda y filtros (`q`, `severity`, `status`):** Provienen de query string. Se transfieren a la capa de persistencia.
-3. **Credenciales y rol (`username`, `password`, `role`):** Provienen de formularios POST. El rol se valida contra una lista blanca fija (`employee`, `analyst`, `admin`).
-4. **Contenido de texto libre (`title`, `description`, `content`):** Almacenados en base de datos.
-5. **URL externa (`source_url`):** Provoca una petición de red externa saliente ejecutada por `PreviewService`.
-6. **Fichero adjunto (`attachment`):** Se guarda en el sistema de archivos (`app/static/uploads/`) usando `os.path.basename`.
-
----
-
-# 4. Autenticación y Control de Acceso (Requisitos R3–R9 — Fase 2)
-
-### 4.1 Sistema de Autenticación y Contraseñas Seguras (R3, R4)
-
-* **Hashing Criptográfico con Bcrypt (R4):** Se sustituyó el almacenamiento en texto plano. Cada contraseña se encripta mediante `bcrypt.hashpw()` con salt único aleatorio (`bcrypt.gensalt()`).
-* **Migración Automática de Contraseñas:** Si un usuario existente en la base de datos inicia sesión con una contraseña en formato antiguo, el sistema valida las credenciales, genera al vuelo el hash `bcrypt` y actualiza el registro en MariaDB.
-* **Control de Expiración de Sesiones por Inactividad (R3):**
-  * Se establece una vigencia máxima de 10 minutos (`PERMANENT_SESSION_LIFETIME = timedelta(minutes=10)`).
-  * Mediante `@app.before_request`, el servidor verifica `session['last_activity']`. Si transcurren más de 600 segundos sin interacción, la sesión se limpia (`session.clear()`) y se redirige a `/login` con un mensaje flash de expiración.
-* **Modal de Advertencia y Extensión de Sesión:**
-  * El frontend detecta la inactividad del usuario mediante eventos de ratón, teclado y scroll.
-  * A los 8 minutos de inactividad (faltando 2 minutos para el cierre), se presenta un modal de advertencia que permite extender la sesión otros 10 minutos mediante una llamada POST a `/extend-session`.
-* **Prevención de Fijación de Sesión:** La ruta `/logout` borra completamente el diccionario de sesión con `session.clear()`.
+1. **Object Path Identifiers (`incident_id`, `filename`):** Controlled by client. Core trust boundary for INC-2026-001. Validated on the server by checking session user identity against record ownership prior to processing.
+2. **Search & Filter Parameters (`q`, `severity`, `status`):** Controlled by client via URL query string. Passed to `MariaDBIncidentRepository.search_and_filter()`.
+3. **Credentials & Roles (`username`, `password`, `role`):** Controlled by client via POST form. Role input is validated against a whitelist (`analyst`, `admin`, `employee`), falling back safely to `analyst` if manipulated.
+4. **Free Text Content (`title`, `description`, `content`):** User-provided text stored in the database. Comments currently preserved verbatim.
+5. **External Threat Intel URL (`source_url`):** Triggers an outbound HTTP request executed by `PreviewService`.
+6. **File Artifacts (`attachment`):** Stored on local disk under `app/static/uploads/` using `os.path.basename`.
 
 ---
 
-### 4.2 Modelo de Roles y Separación de Privilegios (R5)
+# 4. Authentication & Access Control (Requirements R3–R9 — Phase 2)
 
-Sentinel implementa tres roles claramente diferenciados:
+### 4.1 Authentication & Secure Password Storage (R3, R4)
 
-| Capacidad / Operación | Empleado (`employee`) | Analista (`analyst`) | Administrador (`admin`) |
+* **Cryptographic Password Storage with Bcrypt (R4):** Plain-text password storage has been eradicated. Sentinel utilizes `bcrypt` with individual salt generation (`bcrypt.gensalt()`, `bcrypt.hashpw()`).
+* **Seamless Legacy Account Migration:** In `AuthService.login()`, if a legacy account is authenticated without a bcrypt hash prefix (`$2b$`, `$2a$`, `$2y$`), the system verifies the credential, transparently generates a fresh bcrypt hash, and upgrades the database record.
+* **Inactivity Session Expiration (R3):** Configured to 10 minutes (`PERMANENT_SESSION_LIFETIME = timedelta(minutes=10)`). An interceptor in `@app.before_request` checks `session['last_activity']`. If idle for over 600 seconds, the session is cleared (`session.clear()`) and redirected to `/login` with an expiration notice.
+* **Interactive Timeout Warning & Extension:** Base template `base.html` tracks user activity (mouse, keyboard, scroll). When 2 minutes remain (8 minutes of idle time), a modal prompt offers session extension via an authenticated asynchronous call to `/extend-session`.
+* **Session Fixation Prevention:** The `/logout` endpoint invokes `session.clear()`, completely flushing all session state and cookie data.
+
+---
+
+### 4.2 Role Model & Access Control Separation (R5)
+
+Sentinel enforces a 3-role access control model:
+
+| Operational Capability | Employee Role | Analyst Role | Admin Role |
 | :--- | :---: | :---: | :---: |
-| **Crear incidentes** | Sí (Estado fijo `New`) | Sí (Puede asignar analista) | Sí (Puede asignar analista) |
-| **Listar incidentes** | Solo incidentes propios | Todos los incidentes | Todos los incidentes |
-| **Ver detalle de incidente** | Solo incidentes propios | Todos los incidentes | Todos los incidentes |
-| **Publicar comentarios** | Solo en incidentes propios | En cualquier incidente | En cualquier incidente |
-| **Descargar adjuntos** | Solo de incidentes propios | De cualquier incidente | De cualquier incidente |
-| **Cambiar estado o analista** | ❌ Bloqueado por servidor | ✅ Permitido | ✅ Permitido |
-| **Eliminar incidentes** | ❌ Bloqueado por servidor | ❌ Bloqueado por servidor | ✅ Permitido (Exclusivo) |
+| **Create Incident** | Yes (Forced status `New`) | Yes (Can assign analyst) | Yes (Can assign analyst) |
+| **List Incident Queue** | Own incidents only | All incidents | All incidents |
+| **View Incident Detail** | Own incidents only | All incidents | All incidents |
+| **Add Comments** | Own incidents only | Any incident | Any incident |
+| **Download Attachments** | Own attachments only | Any attachment | Any attachment |
+| **Update Status / Assignee** | ❌ Blocked (Server 403) | ✅ Allowed | ✅ Allowed |
+| **Delete Incident** | ❌ Blocked (Server 403) | ❌ Blocked (Server 403) | ✅ Allowed (Exclusive) |
 
 ---
 
-### 4.3 Mecanismo de Control de Acceso y Solución de IDOR (R6, R7, R8)
+### 4.3 Server-Side Access Control & IDOR Remediation (R6, R7, R8)
 
-La vulnerabilidad INC-2026-001 se resolvió aplicando comprobaciones obligatorias en el servidor:
+Incident INC-2026-001 has been permanently remediated through consistent server-side enforcement across all object entry points:
 
-1. **En la vista de detalle (`/incidents/<id>`):**
+1. **Incident Detail Route (`/incidents/<id>`):**
    ```python
    incident, comments = incident_service.get_incident_details(incident_id)
    if not incident:
        abort(404)
 
-   # Protección estricta contra IDOR
+   # Server-side IDOR authorization check
    if session.get("role") == "employee" and incident.created_by != session.get("username"):
        abort(403)
    ```
-2. **En el listado general (`/incidents`):**
-   Se pasa al servicio el parámetro `created_by=session['username']` cuando el rol es `employee`, impidiendo que la consulta SQL retorne incidentes de terceros.
-3. **En la descarga de archivos adjuntos (`/uploads/<filename>`):**
-   El servidor comprueba que el nombre del fichero solicitado coincida con alguno de los incidentes creados por el usuario en sesión antes de autorizar la entrega mediante `send_from_directory`.
-4. **En la publicación de comentarios (`/incidents/<id>/comments`):**
-   Se valida la coincidencia de autoría antes de persistir cualquier comentario.
+2. **Incident Queue Route (`/incidents`):**
+   For users with role `employee`, the database query enforces `created_by = session['username']`, preventing exposure of other employees' records.
+3. **Evidence Attachment Downloads (`/uploads/<filename>`):**
+   When requested by an employee, the server checks the filename against the list of incidents owned by that user before executing `send_from_directory`.
+4. **Investigation Comments (`/incidents/<id>/comments`):**
+   Incident ownership is verified before comments can be persisted to an incident.
 
 ---
 
-# 5. Conclusión y Verificación
+# 5. Conclusion & Verification
 
-La plataforma Sentinel ha alcanzado con éxito los objetivos de las Fases 1 y 2, resolviendo integralmente la vulnerabilidad INC-2026-001 (IDOR), incorporando almacenamiento criptográfico con Bcrypt, control riguroso de sesiones con expiración por inactividad y un modelo de autorización consistente aplicado en el servidor en cada petición.
+The Sentinel platform has successfully met the milestones for Phases 1 and 2, resolving incident INC-2026-001 (IDOR), establishing cryptographic credential protection via Bcrypt, enforcing 10-minute inactivity session management, and implementing a consistent server-side authorization model across all endpoints.
 
-**Firmado por el Sentinel Engineering Squad:**  
+**Signed on behalf of Sentinel Engineering Squad:**  
 * **Lander García Dávila**, Lead Backend Engineer & Security Architect  
 * **Jone López San Juan**, DevOps, Infrastructure & Frontend Specialist
