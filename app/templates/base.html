@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,11 +10,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
 
   <!-- Navigation Bar -->
   <nav class="navbar">
-    <a href="{{ url_for('incidents.list_incidents') if session.get('user_id') else url_for('auth.login') }}" class="nav-brand">
+    <a href="{{ url_for('incidents.list_incidents') if session.get('user_id') else url_for('auth.login') }}"
+      class="nav-brand">
       <span style="color: var(--accent-cyan); font-size: 1.4rem;">🛡️</span>
       <span>SENTINEL</span>
       <span class="brand-badge">SOC CORE</span>
@@ -21,17 +24,19 @@
 
     <div class="nav-links">
       {% if session.get('user_id') %}
-        <a href="{{ url_for('incidents.list_incidents') }}" class="nav-link">Incidents</a>
-        <a href="{{ url_for('incidents.create_incident') }}" class="btn btn-primary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">+ New Incident</a>
-        <div class="user-tag">
-          <span style="font-size: 0.9rem;">👤</span>
-          <span>{{ session.get('username') }}</span>
-          <span class="role-badge role-{{ session.get('role', 'analyst') }}">{{ session.get('role') }}</span>
-        </div>
-        <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color: #f87171;">Logout</a>
+      <a href="{{ url_for('incidents.list_incidents') }}" class="nav-link">Incidents</a>
+      <a href="{{ url_for('incidents.create_incident') }}" class="btn btn-primary"
+        style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">+ New Incident</a>
+      <div class="user-tag">
+        <span style="font-size: 0.9rem;">👤</span>
+        <span>{{ session.get('username') }}</span>
+        <span class="role-badge role-{{ session.get('role', 'analyst') }}">{{ session.get('role') }}</span>
+      </div>
+      <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color: #f87171;">Logout</a>
       {% else %}
-        <a href="{{ url_for('auth.login') }}" class="nav-link">Login</a>
-        <a href="{{ url_for('auth.register') }}" class="btn btn-primary" style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Register</a>
+      <a href="{{ url_for('auth.login') }}" class="nav-link">Login</a>
+      <a href="{{ url_for('auth.register') }}" class="btn btn-primary"
+        style="padding: 0.4rem 0.9rem; font-size: 0.85rem;">Register</a>
       {% endif %}
     </div>
   </nav>
@@ -40,15 +45,15 @@
   <main class="main-content">
     <!-- Flash Messages Container -->
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-container">
-          {% for category, message in messages %}
-            <div class="flash-message flash-{{ category }}">
-              <span>{{ message }}</span>
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
+    {% if messages %}
+    <div class="flash-container">
+      {% for category, message in messages %}
+      <div class="flash-message flash-{{ category }}">
+        <span>{{ message }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     {% endwith %}
 
     {% block content %}{% endblock %}
@@ -74,7 +79,7 @@
   </div>
 
   <script>
-    (function() {
+    (function () {
       // 10 minutes total = 600 seconds. Show popup when 120s remaining (after 8 min of inactivity).
       var totalLifetime = 600;
       var remainingSeconds = totalLifetime;
@@ -106,7 +111,7 @@
       document.addEventListener("mousemove", resetTimer);
       document.addEventListener("scroll", resetTimer);
 
-      var timerInterval = setInterval(function() {
+      var timerInterval = setInterval(function () {
         remainingSeconds--;
 
         if (remainingSeconds <= 120 && remainingSeconds > 0) {
@@ -118,41 +123,42 @@
         }
       }, 1000);
 
-      // Extend button: calls server to reset server-side session, resets client timer
-      btnExtend.addEventListener("click", function(e) {
-        e.stopPropagation(); // Don't trigger the document click resetTimer
-        if (extending) return; // Prevent flood of requests
-        extending = true;
-        btnExtend.disabled = true;
-        btnExtend.textContent = "Extendiendo...";
+        // Extend button: calls server to reset server-side session, resets client timer
+        btnExtend.addEventListener("click", function (e) {
+          e.stopPropagation(); // Don't trigger the document click resetTimer
+          if (extending) return; // Prevent flood of requests
+          extending = true;
+          btnExtend.disabled = true;
+          btnExtend.textContent = "Extendiendo...";
 
-        fetch("{{ url_for('auth.extend_session') }}", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json"
-          }
-        })
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          if (data.status === "success") {
-            remainingSeconds = totalLifetime;
-            lastResetTime = Date.now();
-            modal.classList.remove("active");
-          }
-        })
-        .catch(function(err) {
-          console.error("Error extending session:", err);
-        })
-        .finally(function() {
-          extending = false;
-          btnExtend.disabled = false;
-          btnExtend.textContent = "Extender Sesión";
+          fetch("{{ url_for('auth.extend_session') }}", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/json"
+            }
+          })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              if (data.status === "success") {
+                remainingSeconds = totalLifetime;
+                lastResetTime = Date.now();
+                modal.classList.remove("active");
+              }
+            })
+            .catch(function (err) {
+              console.error("Error extending session:", err);
+            })
+            .finally(function () {
+              extending = false;
+              btnExtend.disabled = false;
+              btnExtend.textContent = "Extender Sesión";
+            });
         });
-      });
-    })();
+      })();
   </script>
   {% endif %}
 
 </body>
+
 </html>
